@@ -28,16 +28,15 @@ html,body{margin:0;padding:0;height:100%;background:var(--void);color:var(--ink)
 body{overscroll-behavior:none;}
 
 /* ---------- پس‌زمینه‌ی زنده ---------- */
-#sky{position:fixed;inset:0;z-index:0;overflow:hidden;background:
+#sky{position:fixed;inset:0;z-index:0;overflow:hidden;contain:strict;
+  transform:translateZ(0);backface-visibility:hidden;background:
   radial-gradient(ellipse 130% 70% at 50% -25%, #0d1018 0%, #070910 40%, #030407 100%);
   transition:background 1.8s ease;}
 body.is-day #sky{background:
   radial-gradient(ellipse 130% 70% at 50% -25%, #2a1c12 0%, #14100b 45%, #070604 100%);}
-/* دانه‌ی فیلم (حس نوآر) */
-#grain{position:absolute;inset:-50%;z-index:3;pointer-events:none;opacity:.09;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation:grainShift .9s steps(3) infinite;}
-@keyframes grainShift{0%{transform:translate(0,0);}33%{transform:translate(-2%,1.5%);}66%{transform:translate(1.5%,-2%);}}
+/* دانه‌ی فیلم (حس نوآر) — ثابت و سبک، بدون انیمیشن پرهزینه */
+#grain{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:.07;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");}
 /* نور بادبزنی تیر چراغ‌برق */
 #beam{position:absolute;top:-10%;left:8%;width:46%;height:76%;pointer-events:none;
   background:linear-gradient(188deg, rgba(228,216,180,.075) 0%, rgba(228,216,180,.03) 42%, transparent 72%);
@@ -89,8 +88,8 @@ body.is-day #horizon{opacity:.4;}
 #app{position:relative;z-index:2;max-width:470px;margin:0 auto;min-height:100vh;
   display:flex;flex-direction:column;padding:22px 18px calc(30px + env(safe-area-inset-bottom));}
 .screen{display:none;flex:1;flex-direction:column;}
-.screen.on{display:flex;animation:rise .42s cubic-bezier(.22,1,.36,1);}
-@keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+.screen.on{display:flex;animation:rise .3s ease-out;will-change:opacity,transform;}
+@keyframes rise{from{opacity:0;transform:translate3d(0,8px,0);}to{opacity:1;transform:translate3d(0,0,0);}}
 
 .crest{display:flex;align-items:center;gap:11px;margin-bottom:20px;}
 .crest .sigil{width:42px;height:42px;flex:none;}
@@ -103,9 +102,8 @@ h3{font-size:16px;font-weight:800;margin:0 0 8px;}
 p{margin:0 0 16px;color:var(--ink-2);line-height:1.9;font-size:14px;}
 .lede{font-size:15px;color:#b9c0d1;}
 
-.slab{background:linear-gradient(165deg, rgba(24,32,49,.88), rgba(15,20,31,.92));
-  border:1px solid var(--edge);border-radius:18px;padding:18px;margin-bottom:13px;
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.slab{background:linear-gradient(165deg, rgba(26,34,52,.97), rgba(14,19,30,.98));
+  border:1px solid var(--edge);border-radius:18px;padding:18px;margin-bottom:13px;}
 .foot{margin-top:auto;padding-top:16px;display:flex;flex-direction:column;gap:9px;}
 
 /* ---------- دکمه‌ها ---------- */
@@ -252,14 +250,14 @@ label{font-size:12.5px;color:var(--ink-2);display:block;margin-bottom:8px;letter
 .kv .k{color:var(--ink-2);}
 .kv .v{font-weight:800;text-align:left;}
 
-.mback{position:fixed;inset:0;background:rgba(2,3,6,.82);backdrop-filter:blur(6px);
-  display:none;align-items:flex-end;justify-content:center;z-index:80;}
-.mback.show{display:flex;animation:fadeIn .2s;}
-@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
-.modal{width:100%;max-width:470px;background:var(--slab);border-radius:22px 22px 0 0;
+.mback{position:fixed;inset:0;background:rgba(2,3,6,.92);
+  display:none;align-items:flex-end;justify-content:center;z-index:80;
+  transform:translateZ(0);}
+.mback.show{display:flex;}
+.modal{width:100%;max-width:470px;background:#161c28;border-radius:22px 22px 0 0;
   padding:20px 18px calc(26px + env(safe-area-inset-bottom));border-top:1px solid var(--edge);
-  animation:slideUp .28s cubic-bezier(.2,1,.3,1);}
-@keyframes slideUp{from{transform:translateY(100%);}to{transform:none;}}
+  animation:slideUp .24s ease-out;will-change:transform;}
+@keyframes slideUp{from{transform:translate3d(0,100%,0);}to{transform:translate3d(0,0,0);}}
 
 .verdict{text-align:center;padding:26px 8px;}
 .verdict .em{font-size:54px;margin-bottom:8px;animation:pop .6s cubic-bezier(.3,1.5,.4,1);}
@@ -530,7 +528,7 @@ function vHome(){
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
       <h1>شهر خوابیده.<br>یکی بیداره.</h1>
       <p class="lede">شب‌بان نقش‌ها رو پخش می‌کنه، نوبت‌ها رو می‌چینه و رازها رو نگه می‌داره. تو فقط گوشی رو دست‌به‌دست کن.</p>
-      ${histCount?`<p style="font-size:12.5px;">🗓 تا الان ${histCount} بازی رو این گوشی ثبت شده — اسامی‌ها یادت مونده.</p>`:''}
+      ${histCount?`<button class="b-link" id="histLink" style="padding:0;">🗓 تا الان ${histCount} بازی رو این گوشی ثبت شده — دیدن تاریخچه ›</button>`:''}
     </div>
     <div class="foot">
       <button class="b b-blood" id="go">شروع بازی</button>
@@ -539,6 +537,41 @@ function vHome(){
   </div>`);
   v.querySelector('#go').onclick=()=>{ musicStart(); stab(); go(vCount()); };
   v.querySelector('#gd').onclick=()=>{ tick(); go(vGuide()); };
+  if(v.querySelector('#histLink')) v.querySelector('#histLink').onclick=()=>{ tick(); go(vHistory()); };
+  return v;
+}
+
+/* ================= تاریخچه‌ی بازی‌ها ================= */
+function vHistory(){
+  const hist=lsGet('shabban_history',[]);
+  const cards=hist.map((g,i)=>{
+    const roster=g.roster||(g.names?g.names.map(n=>({name:n,role:null,alive:null})):[]);
+    const rows=roster.map(p=>{
+      const r=p.role?ROLES[p.role]:null;
+      return `<div class="kv"><div class="k">${p.name}${p.alive===false?' 💀':''}</div>
+        <div class="v" style="color:${r?(r.t==='mafia'?'#ff8c95':'#63dcc3'):'var(--ink-2)'}">${r?r.n:'—'}</div></div>`;
+    }).join('');
+    return `<div class="slab">
+      <div class="kv"><div class="k">تاریخ</div><div class="v">${fmtAgo(g.ts)}</div></div>
+      <div class="kv"><div class="k">تعداد نفرات</div><div class="v">${g.count} نفر (${g.mafia} مافیا)</div></div>
+      <div class="kv"><div class="k">نتیجه</div><div class="v" style="color:${g.winner==='mafia'?'#ff8c95':'#63dcc3'}">${g.winner==='mafia'?'مافیا برد 🩸':'شهروند برد 🕊️'}</div></div>
+      <details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--gold);font-size:13px;">دیدن دفترچه‌ی این بازی ▾</summary>
+        <div style="margin-top:8px;">${rows||'<p style="margin:0;font-size:12.5px;">اطلاعات نقش‌ها برای این بازی ذخیره نشده (بازی قدیمی).</p>'}</div>
+      </details>
+    </div>`;
+  }).join('');
+  const v=el(`<div class="screen on">
+    ${crest('تاریخچه‌ی بازی‌ها')}
+    <h2>بازی‌های قبلی این گوشی</h2>
+    ${hist.length?`<p>جدیدترین بازی بالاست.</p>${cards}
+      <button class="b-link" id="clrHist">پاک کردن کل تاریخچه</button>`
+      :`<p>هنوز هیچ بازی‌ای تموم نشده.</p>`}
+    <div class="foot"><button class="b b-gold" id="bk">برگشت</button></div>
+  </div>`);
+  if(v.querySelector('#clrHist')) v.querySelector('#clrHist').onclick=()=>{
+    tick(); lsSet('shabban_history',[]); go(vHistory());
+  };
+  v.querySelector('#bk').onclick=()=>{ tick(); go(vHome()); };
   return v;
 }
 
@@ -728,11 +761,12 @@ function vPw(){
     ${crest('مرحله ۴ از ۵')}
     <h2>رمز گرداننده</h2>
     <p>بعد از این‌که همه نقششون رو دیدن، با این رمز به دفترچه‌ی مخفی برمی‌گردی. یادت بمونه.</p>
-    <div class="slab"><label>رمز دلخواه</label><input type="text" id="p" placeholder="مثلاً ۱۳۵۷" inputmode="text"></div>
+    <div class="slab"><label>رمز دلخواه (فقط با کیبورد انگلیسی — حروف/عدد لاتین)</label>
+      <input type="password" id="p" placeholder="مثلاً 1357" autocomplete="off"></div>
     <div class="foot"><button class="b b-gold" id="nx">بعدی — اسامی</button></div>
   </div>`);
   v.querySelector('#nx').onclick=()=>{
-    const val=v.querySelector('#p').value.trim();
+    const val=toLatinDigits(v.querySelector('#p').value.trim());
     if(!val){ v.querySelector('#p').focus(); v.querySelector('#p').placeholder='یه رمز وارد کن'; return; }
     tick(); S.pw=val; go(vNames());
   };
@@ -747,6 +781,14 @@ function fmtAgo(ts){
   const d=Math.floor((Date.now()-ts)/86400000);
   if(d<=0) return 'امروز'; if(d===1) return 'دیروز'; return `${d} روز پیش`;
 }
+function toLatinDigits(s){
+  const fa='۰۱۲۳۴۵۶۷۸۹', ar='٠١٢٣٤٥٦٧٨٩';
+  return String(s).replace(/[۰-۹٠-٩]/g, ch=>{
+    const i=fa.indexOf(ch); if(i>-1) return i;
+    const j=ar.indexOf(ch); if(j>-1) return j;
+    return ch;
+  });
+}
 
 function vNames(){
   const known=lsGet('shabban_names',[]);
@@ -758,7 +800,10 @@ function vNames(){
     <p>به همون ترتیبی که می‌خوای گوشی بچرخه وارد کن.</p>
     ${lastMatch?`<div class="slab">
       <label>یه بازی ${lastMatch.count} نفره‌ی قبلی پیدا شد (${fmtAgo(lastMatch.ts)})</label>
-      <button class="b b-ghost b-sm" id="useLast" style="width:100%;">استفاده از همون اسامی</button>
+      <div class="row">
+        <button class="b b-ghost b-sm grow" id="useLast">استفاده از همون اسامی</button>
+        <button class="b b-ghost b-sm" id="undoLast" style="display:none;">↺ برگشت</button>
+      </div>
     </div>`:''}
     ${known.length?`<div class="slab">
       <label>افراد قبلی — بزن تا تو اولین خونه‌ی خالی بشینه</label>
@@ -775,7 +820,13 @@ function vNames(){
     L.appendChild(el(`<div class="nrow"><div class="i">${i+1}</div><input type="text" placeholder="بازیکن ${i+1}"></div>`));
   const inputs=[...L.querySelectorAll('input')];
   if(v.querySelector('#useLast')) v.querySelector('#useLast').onclick=()=>{
-    tick(); lastMatch.names.forEach((n,i)=>{ if(inputs[i]) inputs[i].value=n; });
+    tick();
+    const before=inputs.map(inp=>inp.value);
+    const nm=lastMatch.names||(lastMatch.roster?lastMatch.roster.map(r=>r.name):[]);
+    nm.forEach((n,i)=>{ if(inputs[i]) inputs[i].value=n; });
+    const undoBtn=v.querySelector('#undoLast');
+    undoBtn.style.display='block';
+    undoBtn.onclick=()=>{ tick(); inputs.forEach((inp,i)=>inp.value=before[i]||''); undoBtn.style.display='none'; };
   };
   v.querySelectorAll('[data-nm]').forEach(b=>b.onclick=()=>{
     tick();
@@ -865,7 +916,7 @@ function vGate(){
       <button class="b b-gold" id="g" style="max-width:260px;">ورود</button>
       <div id="e" style="color:#ff6b6b;font-size:13px;min-height:18px;"></div></div></div>`);
   v.querySelector('#g').onclick=()=>{
-    if(v.querySelector('#p').value.trim()===S.pw){ stab(); go(vLedger()); }
+    if(toLatinDigits(v.querySelector('#p').value.trim())===S.pw){ stab(); go(vLedger()); }
     else { v.querySelector('#e').textContent='رمز درست نیست.'; tick(200,.2,.07); }
   };
   return v;
@@ -1181,7 +1232,8 @@ function kick(id){
 function vEnd(w){
   musicStop(); timerPause(); dayMode(w!=='mafia');
   const hist=lsGet('shabban_history',[]);
-  hist.unshift({ts:Date.now(), count:S.total, mafia:S.mafia, names:S.players.map(p=>p.name), winner:w});
+  hist.unshift({ts:Date.now(), count:S.total, mafia:S.mafia, winner:w,
+    roster:S.players.map(p=>({name:p.name, role:p.role, alive:p.alive}))});
   lsSet('shabban_history', hist.slice(0,20));
   const rows=S.players.map(p=>{const r=ROLES[p.role];
     return `<div class="rrow"><div class="art">${ART[p.role]}</div>
