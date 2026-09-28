@@ -1,0 +1,121 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name (e.g. 1.0)"
+        required: false
+        default: "1.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: ${{ github.event.inputs.version_name || '1.0' }}
+      HAS_KEY: ${{ secrets.KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Collect web files
+        run: |
+          mkdir -p www
+          cp index.html www/
+          [ -f manifest.json ] && cp manifest.json www/ || true
+          cp *.png www/
+
+      - name: Install Capacitor
+        run: npm install
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Icons, portrait lock, version
+        run: |
+          set -euo pipefail
+          RES=android/app/src/main/res
+          if command -v magick >/dev/null 2>&1; then IM="magick"; else IM="convert"; fi
+          for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            d="${pair%%:*}"; s="${pair##*:}"
+            mkdir -p "$RES/mipmap-$d"
+            $IM icon-512.png -resize "${s}x${s}" "$RES/mipmap-$d/ic_launcher.png"
+            $IM icon-512.png -resize "${s}x${s}" "$RES/mipmap-$d/ic_launcher_round.png"
+          done
+          for pair in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
+            d="${pair%%:*}"; s="${pair##*:}"
+            mkdir -p "$RES/mipmap-$d"
+            $IM icon-maskable-512.png -resize "${s}x${s}" "$RES/mipmap-$d/ic_launcher_foreground.png"
+          done
+          mkdir -p "$RES/values"
+          cat > "$RES/values/ic_launcher_background.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#140A10</color>
+          </resources>
+          XML
+          if [ -f "$RES/values/styles.xml" ]; then
+            sed -i 's|@drawable/splash|@color/ic_launcher_background|g' "$RES/values/styles.xml"
+          fi
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q 'screenOrientation' "$MANIFEST"; then
+            sed -i 's|<activity|<activity android:screenOrientation="portrait"|' "$MANIFEST"
+          fi
+          GRADLE=android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/" "$GRADLE"
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" "$GRADLE"
+          echo "done: versionCode=$VERSION_CODE versionName=$VERSION_NAME"
+
+      - name: Sync web files into Android
+        run: npx cap sync android
+
+      - name: Build debug APK (for testing)
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Save debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: shabban-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Build and sign release APK (for Myket)
+        if: ${{ env.HAS_KEY == 'true' }}
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          UNSIGNED=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          "$BT/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASS \
+            --key-pass env:KEY_PASS \
+            --out "$GITHUB_WORKSPACE/out/shabban-release.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$GITHUB_WORKSPACE/out/shabban-release.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Save release APK
+        if: ${{ env.HAS_KEY == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: shabban-release-apk
+          path: out/shabban-release.apk
