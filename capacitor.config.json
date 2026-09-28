@@ -1,0 +1,9 @@
+{
+  "appId": "ir.shabban.app",
+  "appName": "شب‌بان",
+  "webDir": "www",
+  "backgroundColor": "#05060a",
+  "android": {
+    "allowMixedContent": false
+  }
+}
