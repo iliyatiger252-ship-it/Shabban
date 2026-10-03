@@ -79,7 +79,8 @@ jobs:
           sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/" "$GRADLE"
           sed -i -E "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" "$GRADLE"
           echo "done: versionCode=$VERSION_CODE versionName=$VERSION_NAME"
-
+      - name: Add Myket billing bridge
+        run: python3 apply_billing.py
       - name: Sync web files into Android
         run: npx cap sync android
 
