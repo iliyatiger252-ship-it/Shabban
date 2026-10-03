@@ -832,6 +832,18 @@ body.pro-skin .gear-btn{border-color:rgba(241,211,155,.35);color:var(--brass-2);
 .acc-in{width:100%;padding:13px 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);color:var(--ink);font:inherit;font-size:16px;text-align:left;}
 .acc-in:focus{outline:none;border-color:rgba(241,211,155,.6);}
 .acc-code{font-size:26px;letter-spacing:10px;text-align:center;font-weight:800;}
+.fb-card{margin:10px 0 0;}
+.fb-card.fb-hid{opacity:.62;border-style:dashed;}
+.fb-h{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
+.fb-h .chip{font-size:12px;padding:5px 10px;}
+.fb-h b{font-size:13.5px;}
+.fb-h small{margin-right:auto;font-size:11.5px;color:var(--ink-2);}
+.fb-b{margin:0 0 6px;font-size:14px;line-height:2;color:#e3e7f3;white-space:pre-wrap;word-break:break-word;}
+.fb-hb{font-size:11.5px;color:#ff9aa4;margin-bottom:6px;}
+.fb-f{display:flex;gap:14px;align-items:center;margin-top:4px;}
+.fb-a{background:none;border:0;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:800;padding:6px 0;cursor:pointer;}
+.fb-a:active{color:var(--brass-2);}
+.fb-ok{font-size:12px;color:var(--ink-2);}
 .acc-err{min-height:18px;margin-top:6px;font-size:12.5px;color:#ff9aa4;}
 .acc-to{font-size:13px;color:#c4cadb;margin-bottom:10px;}
 .acc-to b{color:var(--brass-2);}
@@ -1184,14 +1196,31 @@ const PM = (function(){
       while(tr.next<until && tr.next<tr.stopAt){ this.bar(tr,tr.k,tr.next); tr.k++; tr.next+=bar; } });
     this.active=this.active.filter(tr=>{ if(this.ctx.currentTime>tr.stopAt+5){ try{ tr.gain.disconnect(); }catch(e){} return false; } return true; });
   };
-  return { Engine, TRACKS };
+
+  /* --- پیش‌رندر یک آهنگ به صورت بافر لوپ‌شونده (بدون سنتز زنده) --- */
+  async function renderLoop(name,sr,bars){
+    const cfg=TRACKS[name], bar=60/cfg.bpm*4, L=bar*bars, tail=5;
+    const OC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    const ctx=new OC(2,Math.ceil(sr*(L+tail)),sr); const e=new Engine(ctx);
+    const g=ctx.createGain(); g.gain.value=cfg.vol; g.connect(e.master);
+    const tr={name,gain:g,k:0,next:0,stopAt:Infinity};
+    for(let k=0;k<bars;k++) e.bar(tr,k,k*bar);
+    const r=await ctx.startRendering(); const Ln=Math.round(sr*L), Tn=r.length-Ln;
+    const out=ctx.createBuffer(2,Ln,sr); let pk=0;
+    for(let c=0;c<2;c++){ const s=r.getChannelData(c), d=out.getChannelData(c);
+      for(let i=0;i<Ln;i++){ const v=s[i]+(i<Tn?s[Ln+i]:0); d[i]=v; const a=v<0?-v:v; if(a>pk) pk=a; } }
+    if(pk>0.97){ const k=0.97/pk; for(let c=0;c<2;c++){ const d=out.getChannelData(c); for(let i=0;i<Ln;i++) d[i]*=k; } }
+    return out;
+  }
+  return { Engine, TRACKS, renderLoop };
 })();
 
 
-let pCtx=null, pEng=null, pRun=false, pSched=null, pCur=null;
+let pCtx=null, pMaster=null, pRun=false, pCur=null, pBufs={}, pPend={}, pTracks=[], pBg=false;
+const P_SR=22050, P_BARS=16;
 function pmInit(){
-  if(pEng) return;
-  try{ pCtx=new (window.AudioContext||window.webkitAudioContext)(); pEng=new PM.Engine(pCtx); pEng.master.gain.value=S.sound?0.9:0.0001; }catch(e){ pCtx=null; pEng=null; }
+  if(pCtx) return;
+  try{ pCtx=new (window.AudioContext||window.webkitAudioContext)(); pMaster=pCtx.createGain(); pMaster.gain.value=S.sound?1:0.0001; pMaster.connect(pCtx.destination); }catch(e){ pCtx=null; pMaster=null; }
 }
 const P_VOTE_SCR=['p_vote1','p_bomb','p_bombres','p_vote2','p_dstep'];
 function pmWant(){
@@ -1199,29 +1228,56 @@ function pmWant(){
   if(P_VOTE_SCR.includes(S.scr)) return 'vote';
   return (S.T%2===1)?'day':'night';
 }
+/* هر آهنگ فقط یک بار (در پس‌زمینه) به بافر رندر می‌شه؛ بعدش پخش فقط یه فایل صوتیِ ساده‌ست */
+function pmBuf(name){
+  if(pBufs[name]) return Promise.resolve(pBufs[name]);
+  if(!pPend[name]) pPend[name]=PM.renderLoop(name,P_SR,P_BARS).then(b=>{ pBufs[name]=b; return b; }).catch(e=>{ pPend[name]=null; return null; });
+  return pPend[name];
+}
+function pmPlay(name,fade){
+  const b=pBufs[name]; if(!b||!pCtx) return;
+  const t=pCtx.currentTime+0.05;
+  const g=pCtx.createGain(); g.gain.value=0.0001; g.connect(pMaster);
+  const s=pCtx.createBufferSource(); s.buffer=b; s.loop=true; s.connect(g); s.start(t);
+  g.gain.setTargetAtTime(1,t,fade/3);
+  const me={s,g,out:false};
+  pTracks.forEach(o=>{ if(o.out) return; o.out=true; o.g.gain.setTargetAtTime(0,t,fade/3);
+    try{ o.s.stop(t+fade*1.7); }catch(e){}
+    setTimeout(()=>{ try{ o.g.disconnect(); }catch(e){} pTracks=pTracks.filter(x=>x!==o); },(fade*1.7+1)*1000); });
+  pTracks.push(me);
+}
+function pmFallback(){ pRun=false; pCur=null; oldMusicStart(); }
 function musicFollow(){
-  if(!pRun||!pEng) return;
+  if(!pRun||!pCtx) return;
   const w=pmWant(); if(w===pCur) return;
-  pEng.start(w,pCtx.currentTime+0.05,pCur?8:4); pCur=w;
+  if(pBufs[w]){ pmPlay(w,pCur?8:4); pCur=w; return; }
+  pmBuf(w).then(b=>{ if(!pRun) return; if(!b){ if(!pCur) pmFallback(); return; } musicFollow(); });
+}
+function pmWarm(){
+  if(pBg) return; pBg=true;
+  const rest=['night','day','vote'].filter(n=>!pBufs[n]);
+  (function next(){ const n=rest.shift(); if(!n){ pBg=false; return; } setTimeout(()=>{ pmBuf(n).then(next); },1500); })();
 }
 function proMusicStart(){
   pmInit(); if(!pCtx) return;
   if(pCtx.state==='suspended') pCtx.resume();
   if(pRun) return;
   pRun=true; pCur=null;
-  pEng.master.gain.cancelScheduledValues(pCtx.currentTime); pEng.master.gain.value=S.sound?0.9:0.0001;
-  musicFollow(); pEng.schedule(pCtx.currentTime+2.5);
-  pSched=setInterval(()=>{ try{ pEng.schedule(pCtx.currentTime+2.5); }catch(e){} },100);
+  pMaster.gain.cancelScheduledValues(pCtx.currentTime); pMaster.gain.value=S.sound?1:0.0001;
+  musicFollow(); pmWarm();
 }
 function proMusicStop(){
   if(!pRun) return; pRun=false; pCur=null;
-  try{ pEng.stop(pCtx.currentTime,9); }catch(e){}
-  setTimeout(()=>{ if(!pRun&&pSched){ clearInterval(pSched); pSched=null; } },16000);
+  if(!pCtx) return; const t=pCtx.currentTime;
+  pTracks.forEach(o=>{ if(o.out) return; o.out=true; o.g.gain.setTargetAtTime(0,t,3);
+    try{ o.s.stop(t+15); }catch(e){}
+    setTimeout(()=>{ try{ o.g.disconnect(); }catch(e){} pTracks=pTracks.filter(x=>x!==o); },16000); });
 }
+document.addEventListener('visibilitychange',()=>{ try{ if(!pCtx||!pRun) return; if(document.visibilityState==='hidden') pCtx.suspend(); else pCtx.resume(); }catch(e){} });
 function proMusicMute(muted){
-  if(!pEng||!pCtx) return;
-  const g=pEng.master.gain; g.cancelScheduledValues(pCtx.currentTime);
-  g.setValueAtTime(g.value,pCtx.currentTime); g.linearRampToValueAtTime(muted?0.0001:0.9,pCtx.currentTime+0.18);
+  if(!pMaster||!pCtx) return;
+  const g=pMaster.gain; g.cancelScheduledValues(pCtx.currentTime);
+  g.setValueAtTime(g.value,pCtx.currentTime); g.linearRampToValueAtTime(muted?0.0001:1,pCtx.currentTime+0.18);
 }
 function musicStart(){ if(S.pro){ oldMusicStop(); proMusicStart(); } else { proMusicStop(); oldMusicStart(); } }
 function musicStop(){ oldMusicStop(); proMusicStop(); }
@@ -3816,6 +3872,7 @@ function vSettings(){
         <button class="sw ${S.sound?'on':''}" id="sw" role="switch" aria-checked="${S.sound?'true':'false'}"><i></i></button></div>
     </div>
     ${ACCT.settingsHTML()}
+    ${ACCT.fbOn()?`<div class="psec set"><h4>✍️ تجربه‌ی خودتون رو بنویسید</h4><p class="set-p">مشکل، باگ، نکته‌ی مثبت یا یه تجربه‌ی جالب از بازی؛ بنویس و نظر بقیه رو هم بخون.</p><button class="b b-gold" id="fbOpen">💬 دیدن و نوشتن تجربه‌ها</button></div>`:''}
     <div class="psec set">
       <h4>💬 درباره‌ی شب‌بان</h4>
       <p class="set-p">شب‌بان رو به‌خاطر شما ساختیم؛ برای همه‌ی کسایی که شب‌های بازی مافیا رو دوست دارن ولی از گردوندنش خسته می‌شن. دیگه لازم نیست قوانین رو حفظ باشی، کاغذ و قلم برداری یا یادت بره کی رو زندانی کردی؛ شب‌بان همه‌چیز رو نگه می‌داره تا تو فقط بازی رو بچرخونی و لذت ببری.</p>
@@ -3840,6 +3897,7 @@ function vSettings(){
     $('lvY').onclick=()=>{ unmodal(); leavePro(); }; $('lvN').onclick=()=>{ tick(); unmodal(); }; };
   if(v.querySelector('#up')) v.querySelector('#up').onclick=()=>{ tick(); go(vProLanding()); };
   ACCT.bindSettings(v);
+  const fbo=v.querySelector('#fbOpen'); if(fbo) fbo.onclick=()=>{ tick(); go(ACCT.vFeedback()); };
   v.querySelector('#bk').onclick=()=>{ tick(); settingsBack(); };
   v._back=()=>settingsBack();
   return v;
@@ -4012,6 +4070,74 @@ function vPGuide(){
    - هر دستگاه یه کلید رمزنگاری غیرقابل‌خروج داره (IndexedDB)؛ پاک کردن اطلاعات = دستگاه جدید.
    - خروج از حساب جای دستگاه رو آزاد نمی‌کنه.
    - لایسنس با کلید خصوصی سرور امضا شده و به همین دستگاه گره خورده؛ دستکاری = نامعتبر. */
+/* فیلتر فحش و محتوای نامناسب */
+/* فیلتر فحش و محتوای نامناسب — نسخه‌ی مشترک برنامه و سرور */
+function shabbanBad(input){
+  const FA_D='۰۱۲۳۴۵۶۷۸۹', AR_D='٠١٢٣٤٥٦٧٨٩';
+  /* ---------- نرمال‌سازی ---------- */
+  function norm(t){
+    t=String(t||'').normalize('NFKC').toLowerCase();
+    t=t.replace(/[ً-ٰٟـ​-‏‪-‮⁠-⁤﻿­]/g,'');   // اعراب، کشیده، فاصله‌های نامرئی (نیم‌فاصله هم حذف می‌شه)
+    t=t.replace(/[۰-۹]/g,c=>FA_D.indexOf(c)).replace(/[٠-٩]/g,c=>AR_D.indexOf(c));
+    t=t.replace(/[يىئ]/g,'ی').replace(/[كڪ]/g,'ک').replace(/[ةۀ]/g,'ه').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/[ڤ]/g,'و').replace(/ژ/g,'ز').replace(/[پ]/g,'ب').replace(/[چ]/g,'ج');
+    t=t.replace(/[صث]/g,'س').replace(/[ذضظ]/g,'ز').replace(/ط/g,'ت').replace(/ع/g,'ا').replace(/غ/g,'ق');
+    // شبیه‌سازهای لاتین/عددی داخل متن فارسی
+    t=t.replace(/(?<=[؀-ۿ])1(?=[؀-ۿ])/g,'ی').replace(/(?<=[؀-ۿ])0(?=[؀-ۿ])/g,'و');
+    return t;
+  }
+  // حروف تکراری پشت‌سرهم فشرده می‌شه: کیییر → کیر
+  const squash=s=>s.replace(/(.)\1+/g,'$1');
+  const nz=w=>squash(norm(w));
+
+  /* ---------- لیست‌ها ---------- */
+  // ریشه‌های قطعی: داخل هر کلمه (و داخل متن چسبیده) هم رد می‌شن
+  const STRONG=['کسکش','کسشر','کسخل','کسمغز','کسننه','کسنت','کسعمت','کسمادر','کسکن','جنده','جندگی','جاکش','حرومزاده','حرامزاده','مادرجنده','مادرقحبه','قحبه','کونده','کونکش','کونکن','کوندی','کونگشاد','کیرخر','کیرم','کیرمو','کیرتو','بکیرم','تاکیرم','خارکسه','خارکسده','خارهکسه','خارهکسده','خایمال','خایهمال','گاییدم','گاییدن','گایید','میگامت','بگامت','میگام','بگام','ننهجنده','ننهقحبه','ننتو','پدرسگ','پدرسوخته','مادرسگ','بیشرف','بیناموس','بیغیرت','دیوث','پفیوز','عوضی','لاشی','حشری','هرزه','کثافت','کسافت','سکسی','پورن','اسکل','ننجون','تخمی','بکنمت','کردمت','فاحشه','گوهی'];
+  // فقط وقتی «کل کلمه» (با پسوندهای معمول) باشن
+  const WORD=['ریدم','ریدی','ریدن','گوه','گوهی','کس','کیر','کون','کونی','کیری','گه','خر','کوس','سکس','لعنت','لعنتی','احمق','ابله','کودن','بیشعور','ریده','ننه','حرومی','لخت','برهنه','جنسی','پستون','ممه','کوچول','چوچول','چوچوله','دلقک','ولگرد','هیز','عشوه','فیلم','سوپر','خایه','خایم','کیرش','کونش','کسش','کیرت','کونت','کست','گایید','گاییده','میکنمت','فاک','شیت'].filter(w=>!['فیلم','سوپر','لخت','ننه','عشوه','دلقک','جنسی','ولگرد','برهنه','هیز','پستون','میکنمت','کوچول','ریده'].includes(w));
+  const SUF=['','م','ت','ش','ا','ها','مو','تو','شو','مون','تون','شون'];
+  // لاتین / فینگلیش
+  const LAT_STRONG=['fuck','shit','bitch','pussy','porn','jende','jakesh','kosnane','kiri','kirekhar','kirkhar','koskesh','kosekhar','kosdast','madarjende','pedarsag','harumzade','haramzade','gayidam','gaidam','khayemal','dickhead','asshole','motherf','nigg','whore','slut','cunt'];
+  const LAT_WORD=['kos','kir','koon','kooni','kon3','dick','cock','ass','sex','sexy','xxx','kos3','kose','kiram','kirm','kiri','koonet','joon'].filter(w=>!['joon','sexy'].includes(w));
+
+  const sN=STRONG.map(nz), wN=WORD.map(nz), lsN=LAT_STRONG.map(w=>squash(w)), lwN=LAT_WORD.map(w=>squash(w));
+
+  /* ---------- بررسی ---------- */
+  function wordHit(tok){
+    for(const w of wN){ if(tok===w) return true; if(tok.startsWith(w)){ const r=tok.slice(w.length); if(SUF.includes(r)||SUF.includes(squash(r))) return true; } }
+    return false;
+  }
+  function checkTokens(toks){
+    for(const t of toks){ if(!t) continue;
+      if(wordHit(t)) return true;
+      for(const s of sN) if(t.includes(s)) return true; }
+    return false;
+  }
+  const t0=norm(input);
+  // ۱) لینک، ایمیل، شماره
+  if(/(https?:|www\.|t\.me|wa\.me|\.com|\.ir|\.net|\.org|\.info|instagram|telegram|اینستا|تلگرام|واتساپ|whatsapp|@[a-z0-9_]{3,})/i.test(t0)) return 'link';
+  if(/(\d[\s\-_.]*){7,}/.test(t0)) return 'phone';
+  // ۲) توکن‌ها (جداکننده: هر چیز غیر حرف) ؛ حروف تک‌کاراکتری پشت‌سرهم به هم می‌چسبن (ک ی ر / ک*ی*ر)
+  const raw=t0.split(/[^a-z0-9؀-ۿ]+/).filter(Boolean);
+  const toks=[]; let run='';
+  for(const w of raw){
+    if(w.length===1 && /[؀-ۿa-z]/.test(w)){ run+=w; }
+    else { if(run.length>=2) toks.push(run); run=''; toks.push(w); }
+  }
+  if(run.length>=2) toks.push(run);
+  const ptoks=toks.map(squash);
+  if(checkTokens(ptoks)) return 'bad';
+  // ۳) فارسی چسبیده: کل حروف فارسی بدون هیچ فاصله‌ای (فقط ریشه‌های قطعی)
+  const joined=squash(t0.replace(/[^؀-ۿ]+/g,''));
+  for(const s of sN) if(s.length>=5 && joined.includes(s)) return 'bad';
+  // ۴) لاتین / فینگلیش
+  const lat=toks.map(t=>t.replace(/1/g,'i').replace(/0/g,'o').replace(/3/g,'e').replace(/\$/g,'s').replace(/[^a-z]/g,'')).filter(Boolean).map(squash);
+  const latJoined=squash(t0.replace(/!/g,'i').replace(/1/g,'i').replace(/0/g,'o').replace(/3/g,'e').replace(/\$/g,'s').replace(/[^a-z]+/g,''));
+  for(const s of lsN){ if(latJoined.includes(s)) return 'bad'; }
+  for(const t of lat){ if(lwN.includes(t)) return 'bad'; for(const suf of ['','m','t','sh','i','a','ha','e']){ if(t.endsWith(suf)&&lwN.includes(t.slice(0,t.length-suf.length))&&suf) return 'bad'; } }
+  return '';
+}
+
+
 const ACCT=(function(){
   const SB_URL='https://wxjfedwylfkvfaolqeda.supabase.co';
   const SB_KEY='sb_publishable_3VTATqAZu8JKEQwWfB3Ipg_EQGvOf7F';      // کلید عمومی پروژه (Publishable / anon) — بعد از راه‌اندازی سرور
@@ -4215,7 +4341,7 @@ const ACCT=(function(){
       <div class="psec set" id="lbox"></div>
       <div class="foot"><button class="b b-ghost" id="bk">برگشت</button></div></div>`);
     const B=v.querySelector('#lbox');
-    const back=()=>{ if(st.timer) clearInterval(st.timer); go(opts.then==='buy'?vProLanding():vSettings()); };
+    const back=()=>{ if(st.timer) clearInterval(st.timer); go(opts.then==='buy'?vProLanding():opts.then==='fb'?vFeedback():vSettings()); };
     function drawEmail(e){
       B.innerHTML=`<label class="acc-l" for="em">ایمیل</label>
         <input class="acc-in" id="em" type="email" inputmode="email" autocomplete="email" dir="ltr" maxlength="120" placeholder="name@example.com">
@@ -4254,6 +4380,7 @@ const ACCT=(function(){
           if(c.status===200&&c.j.ok){
             busy=false;
             if(opts.then==='buy'){ go(vProLanding()); setTimeout(buy,50); }
+            else if(opts.then==='fb'){ go(vFeedback()); }
             else { go(vSettings()); alertBox('خوش اومدی',c.j.pro?'وارد شدی؛ نسخه‌ی پرو روی این حساب فعاله.':'وارد شدی.'); }
             return;
           }
@@ -4300,7 +4427,123 @@ const ACCT=(function(){
   }
   function price(){ const c=ls.get(K_CFG,{}); return Number(c.price)||250000; }
 
-  return { boot, buy, vLogin, settingsHTML, bindSettings, price, refreshCfg,
+
+  /* ---------- تجربه‌ها و نظرها (فیدبک کاربرها) ---------- */
+  const FB_URL=SB_URL+'/functions/v1/feedback';
+  const FB_ERR={ NET:'اتصال اینترنت برقرار نیست.', AUTH:'برای این کار باید وارد حسابت بشی.',
+    BAD_WORDS:'متنت شامل کلمه‌ی نامناسب بود. لطفاً محترمانه بنویس و دوباره بفرست.',
+    TOO_SHORT:'متن خیلی کوتاهه؛ کمی بیشتر توضیح بده (حداقل ۸ حرف).', TOO_LONG:'متن خیلی بلنده (حداکثر ۶۰۰ حرف).',
+    RATE_FAST:'چند لحظه‌ی دیگه دوباره امتحان کن (بین دو نظر باید یه دقیقه صبر کنی).', RATE_DAY:'امروز به اندازه‌ی کافی نظر فرستادی؛ فردا دوباره بنویس.',
+    DUP:'این متن رو قبلاً فرستادی.', OWN:'نظر خودت رو نمی‌شه گزارش کرد.', FORBIDDEN:'اجازه‌ی این کار رو نداری.',
+    link:'لینک، آیدی و شماره تماس مجاز نیست.', BAD_INPUT:'اطلاعات درست نیست.', SERVER:'مشکلی پیش اومد. دوباره امتحان کن.' };
+  async function fbCall(action,body){
+    let tk=null; try{ const s=await token(); if(s) tk=s.at; }catch(e){}
+    const r=await req(FB_URL,Object.assign({action},body||{}),tk);
+    if(r.status===0) return {ok:false,code:'NET'};
+    return r.j&&typeof r.j==='object'?r.j:{ok:false,code:'SERVER'};
+  }
+  const FB_KIND={ bug:{t:'🐞 مشکل / باگ',c:'maf'}, good:{t:'👍 نکته‌ی مثبت',c:'ind'}, story:{t:'✨ تجربه‌ی جالب',c:'cit'} };
+  function fbAgo(ms){ const d=Math.max(0,Date.now()-ms)/1000;
+    if(d<60) return 'همین الان'; if(d<3600) return fa(Math.floor(d/60))+' دقیقه پیش'; if(d<86400) return fa(Math.floor(d/3600))+' ساعت پیش';
+    if(d<86400*30) return fa(Math.floor(d/86400))+' روز پیش';
+    try{ return new Date(ms).toLocaleDateString('fa-IR'); }catch(e){ return ''; } }
+  function vFeedback(){
+    proSkin(PROMODE_RAW()&&ok);
+    const signed=!!ls.get(K_SESS,null);
+    let nick=''; try{ nick=localStorage.getItem('shabban_nick')||''; }catch(e){}
+    const st={kind:'story',filter:'',items:[],more:false,admin:false,busy:false,reported:{}};
+    try{ st.reported=JSON.parse(localStorage.getItem('shabban_fbrep')||'{}')||{}; }catch(e){}
+    const v=el(`<div class="screen on">${crest('تجربه‌ها')}
+      <h2>✍️ تجربه‌ی خودتون رو بنویسید</h2>
+      <p>مشکل، باگ، نکته‌ی مثبت یا یه تجربه‌ی جالب از بازی؛ بنویس و نظر بقیه رو هم بخون. لطفاً محترمانه بنویس؛ نظرهای نامناسب ثبت نمی‌شن.</p>
+      <div class="psec set" id="fbForm"></div>
+      <div class="chips" id="fbFil" style="margin:12px 0 4px;"></div>
+      <div id="fbList"></div>
+      <div class="foot"><button class="b b-ghost" id="fbMore" style="display:none;">نمایش بیشتر</button><button class="b b-gold" id="bk">برگشت</button></div></div>`);
+    const F=v.querySelector('#fbForm'), L=v.querySelector('#fbList'), FIL=v.querySelector('#fbFil'), MORE=v.querySelector('#fbMore');
+    function drawForm(){
+      if(!signed){ F.innerHTML=`<h4>📝 نوشتن تجربه</h4><p class="set-p">برای نوشتن باید وارد حسابت بشی (فقط با ایمیل، ۳۰ ثانیه). خوندن نظرها برای همه آزاده.</p><button class="b b-gold" id="fbIn">ورود / ثبت‌نام</button>`;
+        F.querySelector('#fbIn').onclick=()=>{ tick(); go(vLogin({then:'fb'})); }; return; }
+      F.innerHTML=`<h4>📝 نوشتن تجربه</h4>
+        <div class="chips" id="fbK" style="margin-bottom:10px;"></div>
+        <label class="acc-l" for="fbN">اسم نمایشی (اختیاری)</label>
+        <input class="acc-in" id="fbN" type="text" maxlength="16" placeholder="مثلاً: گرداننده‌ی شب" style="text-align:right;direction:rtl;margin-bottom:8px;">
+        <label class="acc-l" for="fbT">تجربه‌ات رو بنویس</label>
+        <textarea class="acc-in" id="fbT" rows="4" maxlength="600" placeholder="چی دیدی؟ چی خوب بود؟ چی درست کار نمی‌کرد؟" style="text-align:right;direction:rtl;resize:vertical;line-height:1.9;"></textarea>
+        <div class="acc-err" id="fbE"></div>
+        <div style="font-size:11.5px;color:var(--ink-2);margin:2px 0 8px;" id="fbC">۰ / ۶۰۰</div>
+        <button class="b b-pro" id="fbS">ارسال تجربه</button>`;
+      const K=F.querySelector('#fbK'); const N=F.querySelector('#fbN'), T=F.querySelector('#fbT'), E=F.querySelector('#fbE'), C=F.querySelector('#fbC');
+      N.value=nick;
+      const dk=()=>{ K.innerHTML=Object.keys(FB_KIND).map(k=>`<button class="chip ${st.kind===k?'on':''}" data-k="${k}">${FB_KIND[k].t}</button>`).join(''); K.querySelectorAll('button').forEach(b=>b.onclick=()=>{ tick(); st.kind=b.dataset.k; dk(); }); }; dk();
+      T.oninput=()=>{ C.textContent=fa(T.value.length)+' / '+fa(600); E.textContent=''; };
+      F.querySelector('#fbS').onclick=async()=>{ if(st.busy) return; tick();
+        const body=T.value.trim(), name=N.value.trim();
+        if(body.length<8){ E.textContent=FB_ERR.TOO_SHORT; return; }
+        let bad=''; try{ bad=shabbanBad(body)||(name?shabbanBad(name):''); }catch(e){}
+        if(bad){ E.textContent=FB_ERR[bad==='bad'?'BAD_WORDS':bad]||FB_ERR.BAD_WORDS; return; }
+        st.busy=true; const btn=F.querySelector('#fbS'); btn.disabled=true; btn.textContent='در حال ارسال…';
+        const r=await fbCall('post',{kind:st.kind,body,name});
+        st.busy=false; btn.disabled=false; btn.textContent='ارسال تجربه';
+        if(!r.ok){ if(r.code==='AUTH'){ E.textContent='نشست ورود منقضی شده؛ دوباره وارد شو.'; } else E.textContent=FB_ERR[r.code]||FB_ERR.SERVER; return; }
+        try{ localStorage.setItem('shabban_nick',name); }catch(e){} nick=name;
+        T.value=''; C.textContent='۰ / ۶۰۰'; E.textContent='';
+        st.items.unshift(r.item); drawList(); alertBox('ممنون 🌙','تجربه‌ات ثبت شد و الان برای همه نمایش داده می‌شه.');
+      };
+    }
+    function drawFilter(){
+      const fl=[['','همه'],['bug','🐞 مشکل‌ها'],['good','👍 مثبت‌ها'],['story','✨ تجربه‌ها']];
+      FIL.innerHTML=fl.map(([k,t])=>`<button class="chip ${st.filter===k?'on':''}" data-k="${k}">${t}</button>`).join('');
+      FIL.querySelectorAll('button').forEach(b=>b.onclick=()=>{ tick(); st.filter=b.dataset.k; load(true); drawFilter(); });
+    }
+    function card(it){
+      const k=FB_KIND[it.kind]||FB_KIND.story;
+      const d=document.createElement('div'); d.className='psec set fb-card'+(it.hidden?' fb-hid':'');
+      const h=document.createElement('div'); h.className='fb-h';
+      const c=document.createElement('span'); c.className='chip '+k.c; c.textContent=k.t;
+      const n=document.createElement('b'); n.textContent=it.name;
+      const tm=document.createElement('small'); tm.textContent=fbAgo(it.at);
+      h.append(c,n,tm); d.append(h);
+      if(it.hidden){ const hb=document.createElement('div'); hb.className='fb-hb'; hb.textContent='پنهان‌شده با گزارش کاربرها ('+fa(it.reports||0)+' گزارش) — فقط ادمین می‌بینه'; d.append(hb); }
+      const p=document.createElement('p'); p.className='fb-b'; p.textContent=it.body; d.append(p);
+      const f=document.createElement('div'); f.className='fb-f';
+      const mk=(t,fn)=>{ const b=document.createElement('button'); b.className='fb-a'; b.textContent=t; b.onclick=()=>{ tick(); fn(b); }; f.append(b); return b; };
+      if(!it.mine && signed){ if(st.reported[it.id]){ const s=document.createElement('span'); s.className='fb-ok'; s.textContent='گزارش شد'; f.append(s); }
+        else mk('🚩 گزارش',async b=>{ b.disabled=true; const r=await fbCall('report',{id:it.id});
+          if(r.ok){ st.reported[it.id]=1; try{ localStorage.setItem('shabban_fbrep',JSON.stringify(st.reported)); }catch(e){} drawList(); } else { b.disabled=false; alertBox('خطا',FB_ERR[r.code]||FB_ERR.SERVER); } }); }
+      if(it.mine||st.admin) mk('🗑 حذف',b=>{
+        modal(`<h3>حذف این نظر؟</h3><p>بعد از حذف قابل برگشت نیست.</p><div class="b-row"><button class="b b-blood" id="fbDY">حذف کن</button><button class="b b-ghost" id="fbDN">نه</button></div>`);
+        $('fbDN').onclick=()=>{ tick(); unmodal(); };
+        $('fbDY').onclick=async()=>{ unmodal(); const r=await fbCall('delete',{id:it.id});
+          if(r.ok){ st.items=st.items.filter(x=>x.id!==it.id); drawList(); } else alertBox('خطا',FB_ERR[r.code]||FB_ERR.SERVER); }; });
+      if(it.hidden&&st.admin) mk('↩ نمایش دوباره',async()=>{ const r=await fbCall('restore',{id:it.id}); if(r.ok){ it.hidden=false; it.reports=0; drawList(); } });
+      if(f.childNodes.length) d.append(f);
+      return d;
+    }
+    function drawList(){
+      L.innerHTML='';
+      const items=st.filter?st.items.filter(x=>x.kind===st.filter):st.items;
+      if(!items.length){ const e=document.createElement('p'); e.className='set-p'; e.style.textAlign='center'; e.style.margin='22px 0'; e.textContent=st.loading?'در حال بارگذاری…':'هنوز تجربه‌ای ثبت نشده؛ اولیش رو تو بنویس ✨'; L.append(e); }
+      else items.forEach(it=>L.append(card(it)));
+      MORE.style.display=st.more?'':'none';
+    }
+    async function load(reset){
+      if(st.busy&&!reset) return; st.busy=true; if(reset){ st.items=[]; st.more=false; } st.loading=true; drawList();
+      const before=reset||!st.items.length?undefined:st.items[st.items.length-1].id;
+      const r=await fbCall('list',{kind:st.filter||undefined,before});
+      st.busy=false; st.loading=false;
+      if(!r.ok){ L.innerHTML=''; const e=document.createElement('p'); e.className='set-p'; e.style.textAlign='center'; e.textContent=r.code==='NET'?FB_ERR.NET:'نظرها بارگذاری نشد. دوباره امتحان کن.'; L.append(e); return; }
+      st.admin=!!(r.me&&r.me.admin); st.items=st.items.concat(r.items||[]); st.more=!!r.more; drawList();
+    }
+    MORE.onclick=()=>{ tick(); load(false); };
+    v.querySelector('#bk').onclick=()=>{ tick(); go(vSettings()); };
+    v._back=()=>go(vSettings());
+    drawForm(); drawFilter(); load(true);
+    return v;
+  }
+
+  const fbOn=()=>CONFIGURED&&SUPPORTED;
+  return { boot, buy, vLogin, vFeedback, fbOn, settingsHTML, bindSettings, price, refreshCfg,
     gated:()=>GATED, ok:()=>ok, loggedIn:()=>!!ls.get(K_SESS,null),
     proAllowed:()=>!GATED||(SUPPORTED&&ok) };
 })();
