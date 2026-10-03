@@ -4071,44 +4071,45 @@ function vPGuide(){
    - خروج از حساب جای دستگاه رو آزاد نمی‌کنه.
    - لایسنس با کلید خصوصی سرور امضا شده و به همین دستگاه گره خورده؛ دستکاری = نامعتبر. */
 /* فیلتر فحش و محتوای نامناسب */
-/* فیلتر فحش و محتوای نامناسب — نسخه‌ی مشترک برنامه و سرور */
+/* فیلتر فحش و محتوای نامناسب — نسخه\u200Cی مشترک برنامه و سرور */
 function shabbanBad(input){
   const FA_D='۰۱۲۳۴۵۶۷۸۹', AR_D='٠١٢٣٤٥٦٧٨٩';
-  /* ---------- نرمال‌سازی ---------- */
+  /* ---------- نرمال\u200Cسازی ---------- */
   function norm(t){
     t=String(t||'').normalize('NFKC').toLowerCase();
-    t=t.replace(/[ً-ٰٟـ​-‏‪-‮⁠-⁤﻿­]/g,'');   // اعراب، کشیده، فاصله‌های نامرئی (نیم‌فاصله هم حذف می‌شه)
+    t=t.replace(/[\u064B-\u065F\u0670\u0640\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g,'');   // اعراب، کشیده، فاصله\u200Cهای نامرئی (نیم\u200Cفاصله هم حذف می\u200Cشه)
     t=t.replace(/[۰-۹]/g,c=>FA_D.indexOf(c)).replace(/[٠-٩]/g,c=>AR_D.indexOf(c));
     t=t.replace(/[يىئ]/g,'ی').replace(/[كڪ]/g,'ک').replace(/[ةۀ]/g,'ه').replace(/[أإآٱ]/g,'ا').replace(/ؤ/g,'و').replace(/[ڤ]/g,'و').replace(/ژ/g,'ز').replace(/[پ]/g,'ب').replace(/[چ]/g,'ج');
     t=t.replace(/[صث]/g,'س').replace(/[ذضظ]/g,'ز').replace(/ط/g,'ت').replace(/ع/g,'ا').replace(/غ/g,'ق');
-    // شبیه‌سازهای لاتین/عددی داخل متن فارسی
+    // شبیه\u200Cسازهای لاتین/عددی داخل متن فارسی
     t=t.replace(/(?<=[؀-ۿ])1(?=[؀-ۿ])/g,'ی').replace(/(?<=[؀-ۿ])0(?=[؀-ۿ])/g,'و');
     return t;
   }
-  // حروف تکراری پشت‌سرهم فشرده می‌شه: کیییر → کیر
+  // حروف تکراری پشت\u200Cسرهم فشرده می\u200Cشه: کیییر → کیر
   const squash=s=>s.replace(/(.)\1+/g,'$1');
   const nz=w=>squash(norm(w));
 
-  /* ---------- لیست‌ها ---------- */
-  // ریشه‌های قطعی: داخل هر کلمه (و داخل متن چسبیده) هم رد می‌شن
+  /* ---------- لیست\u200Cها ---------- */
+  // ریشه\u200Cهای قطعی: داخل هر کلمه (و داخل متن چسبیده) هم رد می\u200Cشن
   const STRONG=['کسکش','کسشر','کسخل','کسمغز','کسننه','کسنت','کسعمت','کسمادر','کسکن','جنده','جندگی','جاکش','حرومزاده','حرامزاده','مادرجنده','مادرقحبه','قحبه','کونده','کونکش','کونکن','کوندی','کونگشاد','کیرخر','کیرم','کیرمو','کیرتو','بکیرم','تاکیرم','خارکسه','خارکسده','خارهکسه','خارهکسده','خایمال','خایهمال','گاییدم','گاییدن','گایید','میگامت','بگامت','میگام','بگام','ننهجنده','ننهقحبه','ننتو','پدرسگ','پدرسوخته','مادرسگ','بیشرف','بیناموس','بیغیرت','دیوث','پفیوز','عوضی','لاشی','حشری','هرزه','کثافت','کسافت','سکسی','پورن','اسکل','ننجون','تخمی','بکنمت','کردمت','فاحشه','گوهی'];
   // فقط وقتی «کل کلمه» (با پسوندهای معمول) باشن
-  const WORD=['ریدم','ریدی','ریدن','گوه','گوهی','کس','کیر','کون','کونی','کیری','گه','خر','کوس','سکس','لعنت','لعنتی','احمق','ابله','کودن','بیشعور','ریده','ننه','حرومی','لخت','برهنه','جنسی','پستون','ممه','کوچول','چوچول','چوچوله','دلقک','ولگرد','هیز','عشوه','فیلم','سوپر','خایه','خایم','کیرش','کونش','کسش','کیرت','کونت','کست','گایید','گاییده','میکنمت','فاک','شیت'].filter(w=>!['فیلم','سوپر','لخت','ننه','عشوه','دلقک','جنسی','ولگرد','برهنه','هیز','پستون','میکنمت','کوچول','ریده'].includes(w));
+  const WORD=['ریدم','ریدی','ریدن','گوه','گوهی','کیر','کون','کونی','کیری','گه','خر','کوس','سکس','لعنت','لعنتی','احمق','ابله','کودن','بیشعور','ریده','ننه','حرومی','لخت','برهنه','جنسی','پستون','کوچول','چوچول','چوچوله','دلقک','ولگرد','هیز','عشوه','فیلم','سوپر','خایه','خایم','کیرش','کونش','کسش','کیرت','کونت','گایید','گاییده','میکنمت','فاک','شیت'].filter(w=>!['فیلم','سوپر','لخت','ننه','عشوه','دلقک','جنسی','ولگرد','برهنه','هیز','پستون','میکنمت','کوچول','ریده'].includes(w));
   const SUF=['','م','ت','ش','ا','ها','مو','تو','شو','مون','تون','شون'];
   // لاتین / فینگلیش
   const LAT_STRONG=['fuck','shit','bitch','pussy','porn','jende','jakesh','kosnane','kiri','kirekhar','kirkhar','koskesh','kosekhar','kosdast','madarjende','pedarsag','harumzade','haramzade','gayidam','gaidam','khayemal','dickhead','asshole','motherf','nigg','whore','slut','cunt'];
   const LAT_WORD=['kos','kir','koon','kooni','kon3','dick','cock','ass','sex','sexy','xxx','kos3','kose','kiram','kirm','kiri','koonet','joon'].filter(w=>!['joon','sexy'].includes(w));
 
-  const sN=STRONG.map(nz), wN=WORD.map(nz), lsN=LAT_STRONG.map(w=>squash(w)), lwN=LAT_WORD.map(w=>squash(w));
+  const WORD_M=['کس','ممه','کست','کسم'];
+  const sN=STRONG.map(nz).filter(x=>x.length>=4), wN=WORD.map(nz), wM=WORD_M.map(nz), lsN=LAT_STRONG.map(w=>squash(w)), lwN=LAT_WORD.map(w=>squash(w));
 
   /* ---------- بررسی ---------- */
-  function wordHit(tok){
-    for(const w of wN){ if(tok===w) return true; if(tok.startsWith(w)){ const r=tok.slice(w.length); if(SUF.includes(r)||SUF.includes(squash(r))) return true; } }
+  function wordHit(tok,merged){
+    for(const w of (merged?wN.concat(wM):wN)){ if(tok===w) return true; if(tok.startsWith(w)){ const r=tok.slice(w.length); if(SUF.includes(r)||SUF.includes(squash(r))) return true; } }
     return false;
   }
-  function checkTokens(toks){
+  function checkTokens(toks,mset){
     for(const t of toks){ if(!t) continue;
-      if(wordHit(t)) return true;
+      if(wordHit(t,mset&&mset.has(t))) return true;
       for(const s of sN) if(t.includes(s)) return true; }
     return false;
   }
@@ -4116,19 +4117,19 @@ function shabbanBad(input){
   // ۱) لینک، ایمیل، شماره
   if(/(https?:|www\.|t\.me|wa\.me|\.com|\.ir|\.net|\.org|\.info|instagram|telegram|اینستا|تلگرام|واتساپ|whatsapp|@[a-z0-9_]{3,})/i.test(t0)) return 'link';
   if(/(\d[\s\-_.]*){7,}/.test(t0)) return 'phone';
-  // ۲) توکن‌ها (جداکننده: هر چیز غیر حرف) ؛ حروف تک‌کاراکتری پشت‌سرهم به هم می‌چسبن (ک ی ر / ک*ی*ر)
+  // ۲) توکن\u200Cها (جداکننده: هر چیز غیر حرف) ؛ حروف تک\u200Cکاراکتری پشت\u200Cسرهم به هم می\u200Cچسبن (ک ی ر / ک*ی*ر)
   const raw=t0.split(/[^a-z0-9؀-ۿ]+/).filter(Boolean);
-  const toks=[]; let run='';
+  const toks=[], mset=new Set(); let run='';
   for(const w of raw){
     if(w.length===1 && /[؀-ۿa-z]/.test(w)){ run+=w; }
-    else { if(run.length>=2) toks.push(run); run=''; toks.push(w); }
+    else { if(run.length>=2){ toks.push(run); mset.add(squash(run)); } run=''; toks.push(w); }
   }
-  if(run.length>=2) toks.push(run);
+  if(run.length>=2){ toks.push(run); mset.add(squash(run)); }
   const ptoks=toks.map(squash);
-  if(checkTokens(ptoks)) return 'bad';
-  // ۳) فارسی چسبیده: کل حروف فارسی بدون هیچ فاصله‌ای (فقط ریشه‌های قطعی)
+  if(checkTokens(ptoks,mset)) return 'bad';
+  // ۳) فارسی چسبیده: کل حروف فارسی بدون هیچ فاصله\u200Cای (فقط ریشه\u200Cهای قطعی)
   const joined=squash(t0.replace(/[^؀-ۿ]+/g,''));
-  for(const s of sN) if(s.length>=5 && joined.includes(s)) return 'bad';
+  for(const s of sN) if(s.length>=4 && joined.includes(s)) return 'bad';
   // ۴) لاتین / فینگلیش
   const lat=toks.map(t=>t.replace(/1/g,'i').replace(/0/g,'o').replace(/3/g,'e').replace(/\$/g,'s').replace(/[^a-z]/g,'')).filter(Boolean).map(squash);
   const latJoined=squash(t0.replace(/!/g,'i').replace(/1/g,'i').replace(/0/g,'o').replace(/3/g,'e').replace(/\$/g,'s').replace(/[^a-z]+/g,''));
