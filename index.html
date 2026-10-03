@@ -3598,7 +3598,7 @@ function vPLast(){
   const _ah=holder('angel'), angelOpt=!S.angelFound && !!_ah && _ah.alive && _ah.role==='angel' && _ah.id!==V.out, cardOpt=S.deck.length>0;
   const v=el(`<div class="screen on">${pbar()}
     <div class="role-head"><div class="ico citizen">⏳</div><div><h2>فرصت آخر</h2><div class="sub">${esc(p.name)}</div></div></div>
-    ${rl(`${p.name}، کدوم گزینه رو انتخاب می‌کنی؟ فرشته‌نجات یا کارت حرکت آخر؟`)}
+    ${rl(angelOpt&&cardOpt?`${p.name}، کدوم گزینه رو انتخاب می‌کنی؟ فرشته‌نجات یا کارت حرکت آخر؟`:angelOpt?`${p.name}، فرصت آخرت: فرشته‌نجات رو انتخاب می‌کنی؟`:cardOpt?`${p.name}، فرصت آخرت: یه کارت حرکت آخر انتخاب می‌کنی؟`:`${p.name}، گزینه‌ای برای فرصت آخر باقی نمونده.`)}
     <div class="psec">
       ${angelOpt?`<button class="tgt" id="oa" style="width:100%;margin-bottom:9px;text-align:right;">😇 انتخاب فرشته‌نجات<small>بازیکن حذف‌شده حدس می‌زنه فرشته‌نجات کیه. اگه درست بگه تو بازی می‌مونه و فرشته‌نجات شهروند ساده می‌شه؛ اگه غلط بگه، می‌ره.</small></button>`:''}
       ${cardOpt?`<button class="tgt" id="oc" style="width:100%;text-align:right;">🃏 کارت حرکت آخر<small>یکی از ${fa(S.deck.length)} کارتِ برعکس رو انتخاب می‌کنه؛ کارت برگردونده می‌شه و اثرش اجرا می‌شه.</small></button>`:''}
@@ -4324,6 +4324,14 @@ const ACCT=(function(){
     const r=await license('purchase',{purchaseData:String(purchaseData||''),signature:String(signature||'')});
     if(r.status===200&&r.j.ok&&r.j.pro){ unmodal(); enterProNow(); }
     else alertBox('خطا',msg(r.j.code));
+  };
+  // خطای پل پرداخت (لغو کاربر بی‌صدا نادیده گرفته می‌شه)
+  window.onShabbanBillingError=function(code){
+    code=String(code||'');
+    if(code==='CANCEL') return;
+    if(code==='NO_MARKET') alertBox('پرداخت','برای خرید باید برنامه‌ی «مایکت» روی گوشی نصب و فعال باشه. مایکت رو باز کن، وارد حسابت شو و دوباره امتحان کن.');
+    else if(code==='NOT_FOUND') alertBox('پرداخت','خریدی برای این حساب توی مایکت پیدا نشد. اگه پول از حسابت کم شده، به پشتیبانی پیام بده.');
+    else alertBox('پرداخت','پرداخت انجام نشد ('+code.slice(0,24)+'). دوباره امتحان کن.');
   };
   function enterProNow(){ setMode(true); proSkin(true); proIntro(()=>go(vHome())); }
 
