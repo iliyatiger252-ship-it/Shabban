@@ -844,6 +844,9 @@ body.pro-skin .gear-btn{border-color:rgba(241,211,155,.35);color:var(--brass-2);
 .fb-a{background:none;border:0;color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:800;padding:6px 0;cursor:pointer;}
 .fb-a:active{color:var(--brass-2);}
 .fb-ok{font-size:12px;color:var(--ink-2);}
+.fb-rep{margin:8px 0 4px;padding:9px 12px;border-right:3px solid var(--brass-2);background:rgba(241,211,155,.07);border-radius:10px;}
+.fb-rep b{font-size:12.5px;color:var(--brass-2);}
+.fb-rep p{margin:4px 0 0;font-size:13.5px;line-height:1.95;color:#e3e7f3;white-space:pre-wrap;word-break:break-word;}
 .acc-err{min-height:18px;margin-top:6px;font-size:12.5px;color:#ff9aa4;}
 .acc-to{font-size:13px;color:#c4cadb;margin-bottom:10px;}
 .acc-to b{color:var(--brass-2);}
@@ -4507,6 +4510,7 @@ const ACCT=(function(){
       h.append(c,n,tm); d.append(h);
       if(it.hidden){ const hb=document.createElement('div'); hb.className='fb-hb'; hb.textContent='پنهان‌شده با گزارش کاربرها ('+fa(it.reports||0)+' گزارش) — فقط ادمین می‌بینه'; d.append(hb); }
       const p=document.createElement('p'); p.className='fb-b'; p.textContent=it.body; d.append(p);
+      if(it.reply){ const r=document.createElement('div'); r.className='fb-rep'; const rt=document.createElement('b'); rt.textContent='💬 پاسخ شب‌بان'; const rp=document.createElement('p'); rp.textContent=it.reply; r.append(rt,rp); d.append(r); }
       const f=document.createElement('div'); f.className='fb-f';
       const mk=(t,fn)=>{ const b=document.createElement('button'); b.className='fb-a'; b.textContent=t; b.onclick=()=>{ tick(); fn(b); }; f.append(b); return b; };
       if(!it.mine && signed){ if(st.reported[it.id]){ const s=document.createElement('span'); s.className='fb-ok'; s.textContent='گزارش شد'; f.append(s); }
