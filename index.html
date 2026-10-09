@@ -2300,7 +2300,8 @@ function vEnd(w){
 
 /* ===== دکمه‌ی برگشت بالای صفحه (فقط مراحل تنظیم و بعد از پایان بازی؛ نسخه‌ی رایگان) ===== */
 function addTopBack(v){
-  if(typeof v._back!=='function' || PROMODE() || S.pro) return;
+  if(typeof v._back!=='function') return;
+  if(v._pg && !['p_count','p_names','p_vset','p_end'].includes(S.scr)) return;   // پرو: فقط قبل از پخش کارت‌ها و بعد از پایان
   const c=v.querySelector('.crest'); if(!c) return;
   const b=document.createElement('button'); b.type='button'; b.className='gear-btn tb-back'; b.id='topBack';
   b.setAttribute('aria-label','برگشت'); b.title='برگشت'; b.textContent='→';
@@ -3857,7 +3858,7 @@ function prender(soft){
   proSkin(true);
   const keepY=soft?(window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0):0;
   if(S.T>=0 && S.T%2===1 && S.scr!=='p_end') dayMode(true); else if(S.scr!=='p_end') dayMode(false);
-  const f=PVIEWS[S.scr]||vPCount; const v=f();
+  const f=PVIEWS[S.scr]||vPCount; const v=f(); v._pg=1;
   if(!('_back' in v)) v._back=()=>pback();
   if(soft) v.style.animation='none';
   go(v); fitFlip(); try{ musicFollow(); }catch(e){} if(soft){ const rs=()=>{ window.scrollTo(0,keepY); document.documentElement.scrollTop=keepY; document.body.scrollTop=keepY; }; rs(); requestAnimationFrame(rs); setTimeout(rs,70); } psave();
